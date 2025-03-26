@@ -61,9 +61,9 @@ func main() {
 	multiplex := http.NewServeMux()
 	fileServ := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
 	multiplex.Handle("/app/", apiCfg.middlewareMetricsInc(fileServ))
-	multiplex.HandleFunc("GET /healthz", handlerReadiness)
-	multiplex.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
-	multiplex.HandleFunc("POST /reset", apiCfg.handleReset)
+	multiplex.HandleFunc("GET /api/healthz", handlerReadiness)
+	multiplex.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
+	multiplex.HandleFunc("POST /api/reset", apiCfg.handleReset)
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: multiplex,
