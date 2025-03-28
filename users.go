@@ -47,5 +47,5 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		Email:     databaseUserEntry.Email,
 	}
 
-	respondWithJSON(w, 201, mainUser)
+	respondWithJSON(w, http.StatusCreated, mainUser)
 }

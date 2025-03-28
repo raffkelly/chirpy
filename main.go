@@ -43,6 +43,8 @@ func main() {
 	multiplex.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	multiplex.HandleFunc("POST /api/validate_chirp", handlerValidate_Chirp)
 	multiplex.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	multiplex.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
+	multiplex.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: multiplex,
