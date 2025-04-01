@@ -13,3 +13,12 @@ GET http://localhost:8080/app/
 ###
 
 GET http://localhost:8080/admin/metrics
+
+###
+POST http://localhost:8080/api/users
+content-type: application/json
+
+{
+  "password": "04234",
+  "email": "lane@example.com"
+}

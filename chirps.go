@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/raffkelly/chirpy/internal/auth"
 	"github.com/raffkelly/chirpy/internal/database"
 )
 
@@ -18,10 +19,18 @@ type Chirp struct {
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
-
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "no token found for user", err)
+	}
+	userIDfromJWT, err := auth.ValidateJWT(token, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid token", err)
+		return
+	}
 	params := Chirp{}
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "error decoding", err)
 		return
@@ -36,7 +45,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 	postingParams := database.CreateChirpParams{
 		Body:   params.Body,
-		UserID: params.UserID,
+		UserID: userIDfromJWT,
 	}
 
 	interChirp, err := cfg.dbQueries.CreateChirp(r.Context(), postingParams)
@@ -71,4 +80,26 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	respondWithJSON(w, http.StatusOK, responseChirps)
+}
+
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		respondWithError(w, 404, "error parsing chirp id", err)
+		return
+	}
+
+	intermedChirp, err := cfg.dbQueries.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, 404, "unable to find chirp", err)
+		return
+	}
+	returnedChirp := Chirp{
+		ID:        intermedChirp.ID,
+		CreatedAt: intermedChirp.CreatedAt,
+		UpdatedAt: intermedChirp.UpdatedAt,
+		Body:      intermedChirp.Body,
+		UserID:    intermedChirp.UserID,
+	}
+	respondWithJSON(w, 200, returnedChirp)
 }

@@ -17,6 +17,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	platform       string
+	secret         string
 }
 
 func main() {
@@ -24,6 +25,7 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	secret := os.Getenv("SECRET")
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -34,6 +36,7 @@ func main() {
 	apiCfg := &apiConfig{}
 	apiCfg.dbQueries = dbQueries
 	apiCfg.platform = platform
+	apiCfg.secret = secret
 
 	multiplex := http.NewServeMux()
 	fileServ := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
@@ -45,6 +48,10 @@ func main() {
 	multiplex.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 	multiplex.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	multiplex.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	multiplex.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
+	multiplex.HandleFunc("POST /api/login", apiCfg.handlerLogin)
+	multiplex.HandleFunc("POST /api/refresh", apiCfg.handleRefresh)
+	multiplex.HandleFunc("POST /api/revoke", apiCfg.handleRevoke)
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: multiplex,
