@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,12 +65,27 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	returnChirps, err := cfg.dbQueries.GetChirps(r.Context())
-	responseChirps := make([]Chirp, len(returnChirps))
+	var err error
+	var userID uuid.UUID
+	var returnChirps []database.Chirp
+	sortMethod := r.URL.Query().Get("sort")
+	err = nil
+	s := r.URL.Query().Get("author_id")
+	if s != "" {
+		userID, err = uuid.Parse(s)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "unable to get uuid from query", err)
+			return
+		}
+		returnChirps, err = cfg.dbQueries.GetChripsByUserID(r.Context(), userID)
+	} else {
+		returnChirps, err = cfg.dbQueries.GetChirps(r.Context())
+	}
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "error retrieving chirps from db", err)
+		respondWithError(w, http.StatusInternalServerError, "error retrieving chrips from db", err)
 		return
 	}
+	responseChirps := make([]Chirp, len(returnChirps))
 	for i, singleChirp := range returnChirps {
 		responseChirps[i] = Chirp{
 			ID:        singleChirp.ID,
@@ -78,6 +94,11 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			Body:      singleChirp.Body,
 			UserID:    singleChirp.UserID,
 		}
+	}
+	if sortMethod == "desc" {
+		sort.Slice(responseChirps, func(i, j int) bool { return responseChirps[i].CreatedAt.After(responseChirps[j].CreatedAt) })
+	} else {
+		sort.Slice(responseChirps, func(i, j int) bool { return responseChirps[i].CreatedAt.Before(responseChirps[j].CreatedAt) })
 	}
 	respondWithJSON(w, http.StatusOK, responseChirps)
 }
@@ -102,4 +123,34 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 		UserID:    intermedChirp.UserID,
 	}
 	respondWithJSON(w, 200, returnedChirp)
+}
+
+func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "token missing", err)
+		return
+	}
+	userID, err := auth.ValidateJWT(tokenString, cfg.secret)
+
+	if err != nil {
+		respondWithError(w, 403, "invalid token", err)
+		return
+	}
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error parsing chirpID from request", err)
+		return
+	}
+	chirp, err := cfg.dbQueries.GetChirp(r.Context(), chirpID)
+	if chirp.UserID != userID {
+		respondWithError(w, 403, "user not authorized to delete chirp", err)
+		return
+	}
+	err = cfg.dbQueries.DeleteChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, 404, "chirp not found", err)
+		return
+	}
+	respondWithJSON(w, 204, nil)
 }
